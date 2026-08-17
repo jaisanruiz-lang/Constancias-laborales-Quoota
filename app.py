@@ -14,8 +14,7 @@ st.write("Selecciona un empleado de la lista e ingresa su sueldo para generar y 
 # 1. URL de tu Webhook de n8n
 N8N_WEBHOOK_URL = "https://n8n-n8n.gfeuh8.easypanel.host/webhook/generar-constancia"
 
-# 2. Conexión directa a Google Sheets
-# Utilizamos el enlace directo de exportación a CSV de tu hoja
+# 2. Conexión directa a Google Sheets (Apunta directamente a la pestaña de empleados con gid=10104786)
 ID_GOOGLE_SHEET = "13VjBlYoagr2OC0DMoTLt9bpmPS9Mu6LOqS_HSxU2dlg"
 URL_DATOS = f"https://docs.google.com/spreadsheets/d/{ID_GOOGLE_SHEET}/export?format=csv&gid=10104786"
 
