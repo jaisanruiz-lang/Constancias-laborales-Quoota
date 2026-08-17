@@ -1,13 +1,12 @@
 import streamlit as st
 import requests
 import pandas as pd
-import os
 
 # Configuración de la página web
 st.set_page_config(page_title="Generador de Constancias", page_icon="📄", layout="centered")
 
 st.title("📄 Generador Automático de Constancias de Trabajo")
-st.write("Selecciona un empleado de la lista para generar y descargar su constancia en PDF al instante.")
+st.write("Selecciona un empleado de la lista e ingresa su sueldo para generar y descargar su constancia en PDF al instante.")
 
 # ==========================================
 #               CONFIGURACIÓN
@@ -15,26 +14,25 @@ st.write("Selecciona un empleado de la lista para generar y descargar su constan
 # 1. URL de tu Webhook de n8n
 N8N_WEBHOOK_URL = "https://n8n-n8n.gfeuh8.easypanel.host/webhook/generar-constancia"
 
-# 2. Nombre del archivo local (asegúrate de que se llame exactamente así en tu carpeta)
-ARCHIVO_LOCAL = "empleados.csv"
+# 2. Conexión directa a Google Sheets
+# Utilizamos el enlace directo de exportación a CSV de tu hoja
+ID_GOOGLE_SHEET = "13VjBlYoagr2OC0DMoTLt9bpmPS9Mu6LOqS_HSxU2dlg"
+URL_DATOS = f"https://docs.google.com/spreadsheets/d/{ID_GOOGLE_SHEET}/export?format=csv"
 
 # ==========================================
-#          CARGA DE DATOS LOCALES
+#          CARGA DE DATOS DESDE G-SHEETS
 # ==========================================
+# Aplicamos un caché de 2 minutos para evitar consultas repetidas al servidor si el usuario interactúa con los botones
+@st.cache_data(ttl=120) 
 def cargar_datos_empleados():
-    if not os.path.exists(ARCHIVO_LOCAL):
-        st.error(f"⚠️ No se encontró el archivo '{ARCHIVO_LOCAL}' en la carpeta actual. Por favor, verifica el nombre.")
-        return None
-        
     try:
-        # Usamos encoding='latin-1' para que Windows Excel lea correctamente la 'é' de Cédula y tildes sin romperse
-        df = pd.read_csv(ARCHIVO_LOCAL, header=6, sep=None, engine='python', encoding='latin-1')
+        # Al descargar directo de G-Sheets, el formato por defecto es UTF-8 y separado por comas
+        df = pd.read_csv(URL_DATOS, header=6, sep=",", engine='python', encoding='utf-8')
         
         # Limpiamos espacios invisibles en los títulos de las columnas
         df.columns = df.columns.astype(str).str.strip()
         
-        # Accedemos por POSICIÓN absoluta en las columnas del archivo para blindar el flujo:
-        # Columna 0 = Cédula, Columna 4 = Nombres, Columna 5 = Apellidos
+        # Accedemos por POSICIÓN absoluta en las columnas del archivo para blindar el flujo
         col_cedula = df.columns[0]
         col_nombres = df.columns[4]
         col_apellidos = df.columns[5]
@@ -59,7 +57,7 @@ def cargar_datos_empleados():
         return df
         
     except Exception as e:
-        st.error(f"Error al procesar el archivo local: {e}")
+        st.error(f"Error al procesar la base de datos de Google Sheets: {e}")
         return None
 
 # Ejecutar la carga de la nómina
@@ -87,25 +85,45 @@ if df_empleados is not None and not df_empleados.empty:
     with col2:
         st.info(f"**Documento de Identidad:**\n{cedula_seleccionada}")
 
+    # ==== NUEVO CAMPO: SUELDO MANUAL ====
+    st.subheader("Información de Remuneración:")
+    sueldo_manual = st.text_input(
+        "Ingresa el monto del sueldo para la constancia:", 
+        placeholder="Ej. $150, 5.000 Bs., etc.",
+        help="Este monto exacto será el que se imprima en el documento."
+    )
+
+    st.divider()
+
     # Botón para disparar la solicitud a n8n
     if st.button("Generar Constancia en PDF", type="primary", use_container_width=True):
-        with st.spinner("Enviando requerimiento a n8n y procesando PDF corporativo..."):
-            payload = {"cedula": cedula_seleccionada}
-            
-            try:
-                respuesta = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=30)
-                if respuesta.status_code == 200:
-                    st.success("¡Constancia procesada exitosamente por el servidor de n8n!")
-                    st.download_button(
-                        label="⬇️ Descargar Archivo PDF",
-                        data=respuesta.content,
-                        file_name=f"Constancia_Trabajo_{cedula_seleccionada}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
-                else:
-                    st.error(f"Error devuelto por n8n: Código {respuesta.status_code}.")
-            except Exception as e:
-                st.error(f"No se pudo conectar con el Webhook: {e}")
+        
+        # Validación: Evitar generar si el sueldo está vacío
+        if not sueldo_manual.strip():
+            st.warning("⚠️ Por favor, ingresa el monto del sueldo antes de generar la constancia.")
+        else:
+            with st.spinner("Enviando requerimiento a n8n y procesando PDF corporativo..."):
+                
+                # Payload con la nueva estructura
+                payload = {
+                    "cedula": cedula_seleccionada,
+                    "sueldo": sueldo_manual.strip()
+                }
+                
+                try:
+                    respuesta = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=30)
+                    if respuesta.status_code == 200:
+                        st.success("¡Constancia procesada exitosamente por el servidor de n8n!")
+                        st.download_button(
+                            label="⬇️ Descargar Archivo PDF",
+                            data=respuesta.content,
+                            file_name=f"Constancia_Trabajo_{cedula_seleccionada}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    else:
+                        st.error(f"Error devuelto por n8n: Código {respuesta.status_code}.")
+                except Exception as e:
+                    st.error(f"No se pudo conectar con el Webhook: {e}")
 else:
-    st.warning("No se pudieron estructurar los datos de los empleados. Verifica que el archivo 'empleados.csv' esté en la misma carpeta.")
+    st.warning("No se pudieron cargar los datos. Verifica que el enlace de Google Sheets sea correcto.")
