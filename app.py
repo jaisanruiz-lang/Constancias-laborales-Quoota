@@ -17,7 +17,7 @@ N8N_WEBHOOK_URL = "https://n8n-n8n.gfeuh8.easypanel.host/webhook/generar-constan
 # 2. Conexión directa a Google Sheets
 # Utilizamos el enlace directo de exportación a CSV de tu hoja
 ID_GOOGLE_SHEET = "13VjBlYoagr2OC0DMoTLt9bpmPS9Mu6LOqS_HSxU2dlg"
-URL_DATOS = f"https://docs.google.com/spreadsheets/d/{ID_GOOGLE_SHEET}/export?format=csv"
+URL_DATOS = f"https://docs.google.com/spreadsheets/d/{ID_GOOGLE_SHEET}/export?format=csv&gid=10104786"
 
 # ==========================================
 #          CARGA DE DATOS DESDE G-SHEETS
