@@ -85,9 +85,16 @@ def cargar_datos_empleados():
         # Creamos la visualización limpia para el selector desplegable
         df['Empleado_Display'] = df[col_nombres] + " " + df[col_apellidos] + " (" + df[col_cedula] + ")"
         
+        # Columnas X (Empresa) e Y (Estatus) de la hoja, si existen
+        df['Empresa_Hoja'] = df[df.columns[23]].fillna('').astype(str).str.strip() if len(df.columns) > 23 else ''
+        df['Estatus_Hoja'] = df[df.columns[24]].fillna('').astype(str).str.strip() if len(df.columns) > 24 else ''
+
+        # Solo mostramos personal activo (las filas sin estatus se consideran activas)
+        df = df[df['Estatus_Hoja'].str.lower() != 'inactivo']
+
         # Renombramos las columnas internas para estandarizar la interfaz
         df = df.rename(columns={col_cedula: 'Cédula', col_nombres: 'Nombres', col_apellidos: 'Apellidos'})
-        return df
+        return df.sort_values('Empleado_Display', key=lambda s: s.str.lower())
         
     except Exception as e:
         st.error(f"Error al procesar la base de datos de Google Sheets: {e}")
@@ -100,22 +107,30 @@ df_empleados = cargar_datos_empleados()
 #           INTERFAZ DE USUARIO
 # ==========================================
 if df_empleados is not None and not df_empleados.empty:
-    # Selector de empresa: define razón social, RIF y dirección que llevará la constancia
-    empresa = st.selectbox(
-        "Empresa que emite la constancia:",
-        EMPRESAS,
-        format_func=lambda e: e["razon_social"],
-    )
-    st.caption(f"**RIF:** {empresa['rif']}  ·  **Domicilio fiscal:** {empresa['direccion']}")
-
     # Generamos la lista ordenada para el buscador desplegable
     lista_empleados = df_empleados['Empleado_Display'].tolist()
     seleccion = st.selectbox("Buscar y seleccionar empleado:", lista_empleados)
-    
+
     # Extraemos la fila del empleado seleccionado
     fila_empleado = df_empleados[df_empleados['Empleado_Display'] == seleccion].iloc[0]
     cedula_seleccionada = str(fila_empleado['Cédula']).strip()
-    
+
+    # Selector de empresa: por defecto la que tiene asignada el empleado en la hoja
+    empresa_hoja = str(fila_empleado.get('Empresa_Hoja', '')).strip().upper()
+    indice_empresa = next(
+        (i for i, e in enumerate(EMPRESAS) if e["razon_social"] == empresa_hoja), 0
+    )
+    empresa = st.selectbox(
+        "Empresa que emite la constancia:",
+        EMPRESAS,
+        index=indice_empresa,
+        format_func=lambda e: e["razon_social"],
+        key=f"empresa_{cedula_seleccionada}",
+    )
+    st.caption(f"**RIF:** {empresa['rif']}  ·  **Domicilio fiscal:** {empresa['direccion']}")
+    if not empresa_hoja:
+        st.warning("Este empleado no tiene empresa asignada en la hoja. Verifica la empresa antes de generar.")
+
     st.divider()
     
     # Tarjeta informativa de validación visual
