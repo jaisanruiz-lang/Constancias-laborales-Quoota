@@ -6,11 +6,45 @@ import pandas as pd
 st.set_page_config(page_title="Generador de Constancias", page_icon="📄", layout="centered")
 
 st.title("📄 Generador Automático de Constancias de Trabajo")
-st.write("Selecciona un empleado de la lista e ingresa su sueldo para generar y descargar su constancia en PDF al instante.")
+st.write("Selecciona la empresa y el empleado, ingresa su sueldo y descarga la constancia en PDF al instante.")
 
 # ==========================================
 #               CONFIGURACIÓN
 # ==========================================
+# 0. Empresas disponibles (datos según RIF). Deben coincidir con el nodo
+#    "Datos de la empresa" del workflow de n8n.
+EMPRESAS = [
+    {
+        "alias": "ALUMINIOLOGO",
+        "rif": "J-31154969-2",
+        "razon_social": "DISTRIBUIDORA DE ALUMINIO EL ALUMINIOLOGO ZICA POLICARPO, C.A.",
+        "direccion": "AV PRINCIPAL LOS MECEDORES EDIF BLOQUE 3 PISO 6 APT 26-A URB HIJOS DE DIOS CARACAS DISTRITO CAPITAL ZONA POSTAL 1010",
+    },
+    {
+        "alias": "ALUTECH LA GUAIRA",
+        "rif": "J-50197119-6",
+        "razon_social": "ALUTECH J.J.M.N. LA GUAIRA, C.A.",
+        "direccion": "AV CARLOS SOUBLETTE LOCAL 1160-014 NRO PB URB MIRAMAR MAIQUETIA LA GUAIRA ZONA POSTAL 1161",
+    },
+    {
+        "alias": "AXIOMA",
+        "rif": "J-50800235-0",
+        "razon_social": "AXIOMA DESARROLLOS, C.A.",
+        "direccion": "CALLE PRINCIPAL DE SOJO LOCAL GALPON NRO S/N SECTOR NIVEL AUTOPISTA ORIENTE GUATIRE MIRANDA ZONA POSTAL 1225",
+    },
+    {
+        "alias": "ALUTECH CARACAS",
+        "rif": "J-50134441-8",
+        "razon_social": "GRUPO ALUTECH J.J.M. CARACAS, C.A.",
+        "direccion": "AV SUCRE CON CALLE REAL DE LOS FLORES DE CATIA LOCAL CC SUCRE, LOCAL NRO 5,6 ZONA CATIA CARACAS DISTRITO CAPITAL ZONA POSTAL 1030",
+    },
+    {
+        "alias": "PERSIANAS NORD",
+        "rif": "J-50134439-6",
+        "razon_social": "PERSIANAS J.J.F. NORD, C.A.",
+        "direccion": "CTRA PETARE SANTA LUCIA LOCAL GALPON NRO S/N SECTOR EL LIMONCITO FILAS DE MARICHE MIRANDA ZONA POSTAL 1073",
+    },
+]
 # 1. URL de tu Webhook de n8n
 N8N_WEBHOOK_URL = "https://n8n-n8n.gfeuh8.easypanel.host/webhook/generar-constancia"
 
@@ -66,6 +100,14 @@ df_empleados = cargar_datos_empleados()
 #           INTERFAZ DE USUARIO
 # ==========================================
 if df_empleados is not None and not df_empleados.empty:
+    # Selector de empresa: define razón social, RIF y dirección que llevará la constancia
+    empresa = st.selectbox(
+        "Empresa que emite la constancia:",
+        EMPRESAS,
+        format_func=lambda e: e["razon_social"],
+    )
+    st.caption(f"**RIF:** {empresa['rif']}  ·  **Domicilio fiscal:** {empresa['direccion']}")
+
     # Generamos la lista ordenada para el buscador desplegable
     lista_empleados = df_empleados['Empleado_Display'].tolist()
     seleccion = st.selectbox("Buscar y seleccionar empleado:", lista_empleados)
@@ -106,17 +148,18 @@ if df_empleados is not None and not df_empleados.empty:
                 # Payload con la nueva estructura
                 payload = {
                     "cedula": cedula_seleccionada,
-                    "sueldo": sueldo_manual.strip()
+                    "sueldo": sueldo_manual.strip(),
+                    "empresa_rif": empresa["rif"]
                 }
-                
+
                 try:
-                    respuesta = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=30)
+                    respuesta = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=60)
                     if respuesta.status_code == 200:
                         st.success("¡Constancia procesada exitosamente por el servidor de n8n!")
                         st.download_button(
                             label="⬇️ Descargar Archivo PDF",
                             data=respuesta.content,
-                            file_name=f"Constancia_Trabajo_{cedula_seleccionada}.pdf",
+                            file_name=f"Constancia_Trabajo_{cedula_seleccionada}_{empresa['alias'].replace(' ', '_')}.pdf",
                             mime="application/pdf",
                             use_container_width=True
                         )
